@@ -78,18 +78,36 @@ def getFollowers(twitter, username, cursor, key):
                     fw.write(str(id['screen_name']) + ";" + str(id['id']) + ";" + str(id['followers_count']) + ";" + str(id['friends_count']) + ";" + str(id['location']) + ";" + str(id['lang']) + ";" + str(id['statuses_count']) + ";" + tweetTime + ";" + str(id['created_at']) + ";" + str(id['verified']) + ";" + str(id['default_profile']) + ";" + str(id['default_profile_image']) + "\n");
                 cursor = ids['next_cursor']
                 if (cursor == 0):
-                    break      
+                    break             
 
 def main(key):
 
     twitter = getConnection(key)
 
-    with open(config['FILES']['INITIAL_PROFILE_SET'], "r") as initialSet:
-        # print("AQUI")
+    # Abrindo arquivo para ver os perfis com seguidores já extraídos
+    with open(config['FILES']['DONE_SET'], 'r+') as doneSet:
+        
+        doneProfiles = doneSet.read().splitlines()
+        if len(doneProfiles) > 0:
+            lastProfileDone = doneProfiles[len(doneProfiles) - 1]
+        else: 
+            lastProfileDone = ""
 
-        profiles = initialSet.readlines()
-        for profile in profiles:
-            getFollowers(twitter, profile, -1, key)
+        lastProfileFound = False
+
+        with open(config['FILES']['INITIAL_PROFILE_SET'], "r") as initialSet:
+            profiles = initialSet.read().splitlines()
+            for profile in profiles:
+
+                if lastProfileFound or lastProfileDone == "":
+                    getFollowers(twitter, profile, -1, key)
+                    # Salvando o último username a ter todos seguidores extraídos
+                    doneSet.write(profile + "\n")
+
+                elif profile == lastProfileDone:
+                    lastProfileFound = True
+
+            print("Every follower from the seeds extracted")
 
 
 if __name__ == "__main__":
