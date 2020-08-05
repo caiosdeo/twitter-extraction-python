@@ -5,14 +5,15 @@ import time
 import urllib.request
 import sys
 import configparser
+import database as db
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 
 def getConnection(key):
     """
-    @param key Varies from 1 to 4 to choose the credentials
-    @return Instancia do twitter
+    :param: key Varies from 1 to 4 to choose the credentials
+    :return: Instancia do twitter
     """
 
     # Dicionário para definir o conjunto das credenciais
@@ -39,7 +40,7 @@ def getFollowers(twitter, username, cursor, key):
     print("Listing followers's ids -> " + username)
 
     with open("output/followers/" + username + ".csv", "w") as fw:
-        with open("output/log/log" + str(key) + ".log", "w") as log:
+        with open("output/log/log" + str(key) + ".log", "a") as log:
             log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Iniciando profile: " + username + "\n")
             while True:
                 try:
@@ -82,32 +83,24 @@ def getFollowers(twitter, username, cursor, key):
 
 def main(key):
 
+    # Auth to twitter API
     twitter = getConnection(key)
 
-    # Abrindo arquivo para ver os perfis com seguidores já extraídos
-    with open(config['FILES']['DONE_SET'], 'r+') as doneSet:
-        
-        doneProfiles = doneSet.read().splitlines()
-        if len(doneProfiles) > 0:
-            lastProfileDone = doneProfiles[len(doneProfiles) - 1]
-        else: 
-            lastProfileDone = ""
+    # Connects to SQLite DB
+    conn = db.createDatabaseConnection()
 
-        lastProfileFound = False
+    profile = db.selectFirstNotDoneProfile(conn)
+    while profile != None:
 
-        with open(config['FILES']['INITIAL_PROFILE_SET'], "r") as initialSet:
-            profiles = initialSet.read().splitlines()
-            for profile in profiles:
+        getFollowers(twitter, profile[1], -1, key)
 
-                if lastProfileFound or lastProfileDone == "":
-                    getFollowers(twitter, profile, -1, key)
-                    # Salvando o último username a ter todos seguidores extraídos
-                    doneSet.write(profile + "\n")
+        # Salvando o último username a ter todos seguidores extraídos
+        db.updateProfile(conn, (1, profile[0]))
 
-                elif profile == lastProfileDone:
-                    lastProfileFound = True
+        profile = db.selectFirstNotDoneProfile(conn)
 
-            print("Every follower from the seeds extracted")
+
+    print("Every follower from the seeds extracted")
 
 
 if __name__ == "__main__":
@@ -115,3 +108,14 @@ if __name__ == "__main__":
         main(sys.argv[1])    
     except Exception as ex:
         print("Exception on main occured: " + str(ex))
+
+# TODO
+# ! Conectar ao banco
+    # ! Fazer um select na tabela de perfisConcluidos para pegar o último perfil adicionado
+    # ! Se retorno vazio
+        # ! prosseguir para extração normal
+        # ? jump
+    # ! Senão 
+        # ! procurar pelo perfil no arquivo de sementes e ir para o próximo
+    # * Extração
+    # ! Terminada a extração do perfil, criar uma query para salvar o perfil no banco
