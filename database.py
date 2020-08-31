@@ -35,20 +35,31 @@ def createProfile(conn, profile):
     """
     Create a new profile into the profiles table
     :param conn:
-    :param profile: (username, already_done)
+    :param profile: (username, already_done, in_extraction)
     """
-    sql = ''' INSERT INTO Profiles(username,already_done) VALUES (?,?) '''
+    sql = ''' INSERT INTO Profiles(username,already_done,in_extraction) VALUES (?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, profile)
     conn.commit()
 
-def updateProfile(conn, profile):
+def updateProfileBeingUsed(conn, profile):
+    """
+    update in_extraction of a profile by its id
+    :param conn:
+    :param profile: (in_extraction, id)
+    """
+    sql = ''' UPDATE Profiles SET in_extraction = ? WHERE id = ?'''
+    cur = conn.cursor()
+    cur.execute(sql, profile)
+    conn.commit()
+
+def updateProfileDone(conn, profile):
     """
     update already_done of a profile by its id
     :param conn:
-    :param profile: (already_done, id)
+    :param profile: (already_done, in_extraction, id)
     """
-    sql = ''' UPDATE Profiles SET already_done = ? WHERE id = ?'''
+    sql = ''' UPDATE Profiles SET already_done = ?, in_extraction = ? WHERE id = ?'''
     cur = conn.cursor()
     cur.execute(sql, profile)
     conn.commit()
@@ -69,13 +80,14 @@ def selectAllProfiles(conn):
 
 def selectFirstNotDoneProfile(conn):
     """
-    Query for the first row in the profiles table with already_done equals to 0
+    Query for the first row in the profiles table with already_done equals to 0 and
+    if the profile is not being used by other set of keys
     :param conn: the Connection object
-    :return: notDoneProfile tuple 0 - id; 1 - username; 3 - already_done
+    :return: notDoneProfile tuple 0 - id; 1 - username; 3 - already_done; 4 - in_extraction
     """
 
     cur = conn.cursor()
-    cur.execute("SELECT * FROM Profiles WHERE already_done = 0 ORDER BY id ASC LIMIT 1 ")
+    cur.execute("SELECT * FROM Profiles WHERE already_done = 0 AND in_extraction = 0 ORDER BY id ASC LIMIT 1 ")
 
     notDone = cur.fetchall()
 
@@ -102,7 +114,8 @@ def mainDB():
     sql_create_profiles_table = """CREATE TABLE IF NOT EXISTS Profiles (
                                     id integer PRIMARY KEY,
                                     username text NOT NULL,
-                                    already_done integer NOT NULL
+                                    already_done integer NOT NULL,
+                                    in_extraction integer NOT NULL
                                 );"""
 
     conn = createDatabaseConnection()
@@ -115,8 +128,8 @@ def mainDB():
         with open(config['FILES']['INITIAL_PROFILE_SET'], "r") as initialSet:
             profiles = initialSet.read().splitlines()
             for profile in profiles:
-                # Inserting the username and 0 for not concluded 
-                createProfile(conn, (profile, 0) )
+                # Inserting the username and 0 for not concluded and not being used
+                createProfile(conn, (profile, 0, 0) )
 
 
 if __name__ == "__main__":
