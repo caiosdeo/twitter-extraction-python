@@ -1,4 +1,5 @@
 import configparser
+from tqdm import tqdm
 import sqlite3
 from sqlite3 import Error
 
@@ -40,7 +41,7 @@ def createProfile(conn, profile):
     sql = ''' INSERT INTO Profiles(username,already_done,in_extraction) VALUES (?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, profile)
-    conn.commit()
+    # conn.commit()
 
 def updateProfileBeingUsed(conn, profile):
     """
@@ -63,6 +64,21 @@ def updateProfileDone(conn, profile):
     cur = conn.cursor()
     cur.execute(sql, profile)
     conn.commit()
+
+def selectProfile(conn, username):
+    """
+    Query all rows in the profiles table searching for an specific username
+    :param conn: the Connection object
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM Profiles WHERE username = ?", (username, ))
+
+    username = cur.fetchall()
+
+    if len(username) == 0:
+        return None
+    return username
 
 def selectAllProfiles(conn):
     """
@@ -125,12 +141,16 @@ def mainDB():
         createTable(conn, sql_create_profiles_table)
 
         # * inserting data into profiles
-        with open(config['FILES']['INITIAL_PROFILE_SET'], "r") as initialSet:
-            profiles = initialSet.read().splitlines()
-            for profile in profiles:
-                # Inserting the username and 0 for not concluded and not being used
-                createProfile(conn, (profile, 0, 0) )
+        with open(config['FILES']['LEVEL_ONE_SET'], "r") as dataset:
+            profiles = dataset.read().splitlines()
+            for profile in tqdm(profiles):
+                # Verify if the profile is already on the database
+                if selectProfile(conn, profile) == None:
+                    # Inserting the username and 0 for not concluded and not being used
+                    createProfile(conn, (profile, 0, 0) )
 
+            conn.commit()
+            print("Perfis inseridos no banco de dados")
 
 if __name__ == "__main__":
     try:
