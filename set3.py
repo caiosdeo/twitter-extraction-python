@@ -46,7 +46,7 @@ def getFollowers(twitter, username, cursor, key):
                 log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Iniciando profile: " + username + "\n")
                 while True:
                     try:
-                        ids = twitter.get_followers_list(screen_name=username, cursor=cursor)                    
+                        ids = twitter.get_followers_list(screen_name=username, cursor=cursor, count=200)                    
                     except Exception as ex:
                         log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Failed to get followers' ids: " + str(ex) + "\n");
                         fw.flush()
@@ -74,7 +74,7 @@ def getFollowers(twitter, username, cursor, key):
                             try:
                                 tweetList = twitter.get_user_timeline(screen_name=id['screen_name'])
                             except Exception as ex:
-                                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Error: " + str(ex) + " on profile: " + id.getScreenName() + "..Next profile... \n");
+                                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Error: " + str(ex) + "..Next profile... \n");
                                 continue
 
                             if (len(tweetList) > 1):
@@ -123,6 +123,7 @@ def main(key):
         db.updateProfileDone(conn, (1, 0, profile[0]))
 
         profile = db.selectFirstNotDoneProfile(conn)
+
 
 if __name__ == "__main__":
     try:
