@@ -37,8 +37,8 @@ def netIsAvailable():
         return False
 
 
-def getFollowers(twitter, username, cursor, key):
-    print("Listing followers's ids -> " + username)
+def getFollowers(twitter, conn, idProfile, username, cursor, key):
+    print("Listing followers' ids -> " + username)
 
     with open("output/followers/" + username + ".csv", "w") as fw:
         with open("output/log/log" + str(key) + ".log", "a") as log:
@@ -65,43 +65,21 @@ def getFollowers(twitter, username, cursor, key):
                     log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Writing " + str(len(ids['users'])) + " data...\n");
 
                     for id in ids['users']:
-                        tweetTime = ";;"
 
                         if not (id["protected"]):
 
-                            location = id['location'] # Local padrão vai ser o definido pelo usuário
-                            
-                            try:
-                                tweetList = twitter.get_user_timeline(screen_name=id['screen_name'])
-                            except Exception as ex:
-                                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Error: " + str(ex) + "..Next profile... \n");
-                                continue
+                            geo = 1 if id['geo_enabled'] else 0
 
-                            if (len(tweetList) > 1):
-                                tweetTime = tweetList[0]['created_at'] + ";" + tweetList[len(tweetList) - 1]['created_at'] + ";" + str(len(tweetList));
-
-                            elif (len(tweetList)  == 1):
-                                tweetTime = tweetList[0]['created_at'] + ";;1"
-                            
-                            elif (len(tweetList)  == 0):
-                                tweetTime = ";;0"
-
-                            # Se o usuário tem o geo_enabled ativo, algum tweet dele pode vir com coordenadas exatas
-                            if(id['geo_enabled']): 
-                                for tweet in tweetList:
-                                    if(tweet['geo']):
-                                        location = tweet['geo']['coordinates']
-                                        break   
-
-                            fw.write(str(id['screen_name']) + ";" + str(id['id']) + ";" + str(id['followers_count']) + ";" + str(id['friends_count']) + ";" + str(location) + ";" + str(id['lang']) + ";" + str(id['statuses_count']) + ";" + tweetTime + ";" + str(id['created_at']) + ";" + str(id['verified']) + ";" + str(id['default_profile']) + ";" + str(id['default_profile_image']) + "\n");
+                            db.insertFollower(conn, (str(id['screen_name']), str(id['id']), str(id['followers_count']), str(id['friends_count']), id['location'], geo, str(id['lang']), str(id['statuses_count']), '', str(id['created_at']), str(id['verified']), str(id['default_profile']), str(id['default_profile_image']), 0, 0, idProfile))
+                            fw.write(str(id['screen_name']) + ";" + str(id['id']) + ";" + str(id['followers_count']) + ";" + str(id['friends_count']) + ";" + id['location'] + ";" + str(id['lang']) + ";" + str(id['statuses_count']) + str(id['created_at']) + ";" + str(id['verified']) + ";" + str(id['default_profile']) + ";" + str(id['default_profile_image']) + "\n");
                             nextSet.write(str(id['screen_name']) + "\n")
 
+                    conn.commit()
                     cursor = ids['next_cursor']
                     if (cursor == 0):
                         break   
 
-    print("Listed followers's ids -> " + username)
-      
+    print("Listed followers' ids -> " + username)
 
 def main(key):
 
@@ -117,8 +95,8 @@ def main(key):
         # Salva no banco que o perfil está sendo usado
         db.updateProfileBeingUsed(conn, (1, profile[0]))
 
-        getFollowers(twitter, profile[1], -1, key)
-
+        getFollowers(twitter, conn, profile[0], profile[1], -1, key)
+        
         # Salvando o último username a ter todos seguidores extraídos
         db.updateProfileDone(conn, (1, 0, profile[0]))
 
@@ -127,6 +105,7 @@ def main(key):
 
 if __name__ == "__main__":
     try:
+        time.sleep(15)
         main(2)    
     except Exception as ex:
-        print("Exception on main occured: " + str(ex))
+        print("Exception on main(2) occured: " + str(ex))
