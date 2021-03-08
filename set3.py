@@ -36,50 +36,62 @@ def netIsAvailable():
     except:
         return False
 
+def timelineRequestIsAvailable(twitter, username):
 
-def getFollowers(twitter, conn, idProfile, username, cursor, key):
-    print("Listing followers' ids -> " + username)
+    try:
+        tweetList = twitter.get_user_timeline(screen_name=username)
+        return True
+    except Exception as ex:
+        if(ex.error_code == 429):
+            return False
 
-    with open("output/followers/" + username + ".csv", "w") as fw:
-        with open("output/log/log" + str(key) + ".log", "a") as log:
-            with open("resources/nextSet" + str(key) + ".txt", "a") as nextSet:
-                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Iniciando profile: " + username + "\n")
-                while True:
-                    try:
-                        ids = twitter.get_followers_list(screen_name=username, cursor=cursor, count=200)                    
-                    except Exception as ex:
-                        log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Failed to get followers' ids: " + str(ex) + "\n");
-                        fw.flush()
-                        log.flush()
-                        if(ex.error_code == 429):
-                            log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Rate limit exceeded. Waiting 15 minutes to continue..\n");
-                            time.sleep(900);
-                            while not netIsAvailable():
-                                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] No internet. Waiting 5 minutes to try again..\n");
-                                time.sleep(300);
-                            twitter = getConnection(key);
-                            ids = twitter.get_followers_list(screen_name=username, cursor=cursor)
-                        else:
-                            log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Private or invalid profile. Skipping..\n");
-                            break;
-                    log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Writing " + str(len(ids['users'])) + " data...\n");
+def updateGeoActivity(twitter, conn, profile, cursor, key):
+    print("Gathering followers' geo and activity -> " + profile[1])
 
-                    for id in ids['users']:
+    with open("output/log/log" + str(key) + ".log", "a") as log:
+        log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Updating profile geo and activity: " + profile[1] + "\n")
+        while True:
 
-                        if not (id["protected"]):
+            try:
+                tweetList = twitter.get_user_timeline(screen_name=profile[1])
+            except Exception as ex:
+                log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Error: " + str(ex) + "..Next profile... \n");
+                log.flush()
+                if(ex.error_code == 429 or ex.error_code == 500):
 
-                            geo = 1 if id['geo_enabled'] else 0
+                    while not timelineRequestIsAvailable(twitter, profile[1]):
+                        log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Rate limit exceeded. Waiting 15 minutes to try again..\n");
+                        time.sleep(900);
+                
+                    while not netIsAvailable():
+                        log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] No internet. Waiting 5 minutes to try again..\n");
+                        time.sleep(300);
 
-                            db.insertFollower(conn, (str(id['screen_name']), str(id['id']), str(id['followers_count']), str(id['friends_count']), id['location'], geo, str(id['lang']), str(id['statuses_count']), '', str(id['created_at']), str(id['verified']), str(id['default_profile']), str(id['default_profile_image']), 0, 0, idProfile))
-                            fw.write(str(id['screen_name']) + ";" + str(id['id']) + ";" + str(id['followers_count']) + ";" + str(id['friends_count']) + ";" + id['location'] + ";" + str(id['lang']) + ";" + str(id['statuses_count']) + str(id['created_at']) + ";" + str(id['verified']) + ";" + str(id['default_profile']) + ";" + str(id['default_profile_image']) + "\n");
-                            nextSet.write(str(id['screen_name']) + "\n")
+                    twitter = getConnection(key);
+                    tweetList = twitter.get_user_timeline(screen_name=profile[1])
+                else:
+                    break
 
-                    conn.commit()
-                    cursor = ids['next_cursor']
-                    if (cursor == 0):
+            if (len(tweetList) > 1):
+                tweetTime = tweetList[0]['created_at'] + ";" + tweetList[len(tweetList) - 1]['created_at'] + ";" + str(len(tweetList));
+
+            elif (len(tweetList)  == 1):
+                tweetTime = tweetList[0]['created_at'] + ";;1"
+            
+            elif (len(tweetList)  == 0):
+                tweetTime = ";;0"
+
+            # Se o usuário tem o geo_enabled ativo, algum tweet dele pode vir com coordenadas exatas
+            if(profile[6] == 1): 
+                for tweet in tweetList:
+                    if(tweet['geo']):
+                        location = tweet['geo']['coordinates']
+                        db.updateFollowerLocation(conn, (str(location), profile[0]))
                         break   
 
-    print("Listed followers' ids -> " + username)
+            db.updateFollowerTweetTime(conn, (tweetTime, profile[0]))
+            break
+    print("Gathered followers' geo and activity -> " + profile[1])
 
 def main(key):
 
@@ -89,23 +101,27 @@ def main(key):
     # Connects to SQLite DB
     conn = db.createDatabaseConnection()
 
-    profile = db.selectFirstNotDoneProfile(conn)
+    profile = db.selectFirstNotDoneFollowerWithGeo(conn)
+
     while profile != None:
 
         # Salva no banco que o perfil está sendo usado
-        db.updateProfileBeingUsed(conn, (1, profile[0]))
+        db.updateFollowerBeingUsed(conn, (1, profile[0]))
 
-        getFollowers(twitter, conn, profile[0], profile[1], -1, key)
-        
+        updateGeoActivity(twitter, conn, profile, -1, key)
+
         # Salvando o último username a ter todos seguidores extraídos
-        db.updateProfileDone(conn, (1, 0, profile[0]))
+        db.updateFollowerDone(conn, (1, 0, profile[0]))
 
-        profile = db.selectFirstNotDoneProfile(conn)
-
+        try:
+            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
+        except:
+            time.sleep(300)
+            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
 
 if __name__ == "__main__":
     try:
         time.sleep(30)
-        main(1)    
+        main(3)    
     except Exception as ex:
         print("Exception on main(3) occured: " + str(ex))

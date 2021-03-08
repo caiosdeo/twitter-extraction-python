@@ -6,28 +6,28 @@ from sqlite3 import Error
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-def connect():
+def connect(dbFile=config['SQLITE']['DATABASE']):
     """ create a database connection to the SQLite database specified by db_file
     :param db_file: database file
     :return: Connection object or None
     """
     conn = None
     try:
-        conn = sqlite3.connect(config['SQLITE']['DATABASE'])
+        conn = sqlite3.connect(dbFile)
         return conn
     except Error as e:
         print(e)
 
     return conn
 
-def createDatabaseConnection():
+def createDatabaseConnection(dbFile=config['SQLITE']['DATABASE']):
     """ create a database connection to the SQLite database specified by db_file
     :param db_file: database file
     :return: Connection object or None
     """
     conn = None
     try:
-        conn = sqlite3.connect(config['SQLITE']['DATABASE'], timeout=40, check_same_thread=False)
+        conn = sqlite3.connect(dbFile, timeout=40, check_same_thread=False)
         conn.execute('pragma journal_mode=wal')
         return conn
     except Error as e:
@@ -175,6 +175,51 @@ def selectProfile(conn, username):
         return None
     return username
 
+def selectProfileById(conn, profileID):
+    """
+    Query all rows in the profiles table searching for an specific username
+    :param conn: the Connection object
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM profiles WHERE id = ?", (profileID, ))
+
+    username = cur.fetchall()
+
+    if len(username) == 0:
+        return None
+    return username[0]
+
+def selectFollowerById(conn, followerId):
+    """
+    Query all rows in the profiles table searching for an specific username
+    :param conn: the Connection object
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM Follower WHERE id = ?", (followerId, ))
+
+    username = cur.fetchall()
+
+    if len(username) == 0:
+        return None
+    return username[0]
+
+def selectFollowersByProfileId(conn, profileID):
+    """
+    Query all rows in the profiles table searching for an specific username
+    :param conn: the Connection object
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM Follower WHERE idProfile = ?", (profileID, ))
+
+    username = cur.fetchall()
+
+    if len(username) == 0:
+        return None
+    return username
+
 def selectAllProfiles(conn):
     """
     Query all rows in the profiles table
@@ -217,6 +262,24 @@ def selectFirstNotDoneFollower(conn):
 
     cur = conn.cursor()
     cur.execute("SELECT * FROM Follower WHERE already_done = 0 AND in_extraction = 0 ORDER BY id ASC LIMIT 1 ")
+
+    notDone = cur.fetchall()
+
+    if len(notDone) == 0:
+        return None
+
+    return notDone[0]
+
+def selectFirstNotDoneFollowerWithGeo(conn):
+    """
+    Query for the first row in the followers table with already_done equals to 0 and
+    if the follower is not being used by other set of keys
+    :param conn: the Connection object
+    :return: notDoneFollower tuple 0 - id; 1 - username; 3 - already_done; 4 - in_extraction; 5 - idProfile
+    """
+
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM Follower WHERE already_done = 0 AND in_extraction = 0 AND geo = 1 ORDER BY id ASC LIMIT 1 ")
 
     notDone = cur.fetchall()
 
@@ -269,27 +332,37 @@ def mainDB():
                                         FOREIGN KEY (idProfile) REFERENCES Profiles(id)
                                     );"""
 
-    conn = connect()
+    conn = createDatabaseConnection()
 
     with conn:
 
-        # * create profiles table
-        createTable(conn, sql_create_profiles_table)
+        # # * create profiles table
+        # createTable(conn, sql_create_profiles_table)
 
-        # * create followers table
-        createTable(conn, sql_create_followers_table)
+        # # * create followers table
+        # createTable(conn, sql_create_followers_table)
 
-        # * inserting data into profiles
-        with open(config['FILES']['LEVEL_ONE_SET'], "r") as dataset:
-            profiles = dataset.read().splitlines()
-            for profile in tqdm(profiles):
-                # Verify if the profile is already on the database
-                if selectProfile(conn, profile) == None:
-                    # Inserting the username and 0 for not concluded and not being used
-                    createProfile(conn, (profile, 0, 0) )
+        # # * inserting data into profiles
+        # with open(config['FILES']['LEVEL_ONE_SET'], "r") as dataset:
+        #     profiles = dataset.read().splitlines()
+        #     for profile in tqdm(profiles):
+        #         # Verify if the profile is already on the database
+        #         if selectProfile(conn, profile) == None:
+        #             # Inserting the username and 0 for not concluded and not being used
+        #             createProfile(conn, (profile, 0, 0) )
 
-            conn.commit()
-            print("Perfis inseridos no banco de dados")
+        #     conn.commit()
+        #     print("Perfis inseridos no banco de dados")
+        i = 2869;
+        while i < 4848:
+            
+            profile = selectProfileById(conn, i)
+            # print("AQUI")
+
+            # print(profile[1])
+            print(str(profile[1]) + ".csv")
+
+            i += 1
 
 if __name__ == "__main__":
     try:

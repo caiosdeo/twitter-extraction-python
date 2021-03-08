@@ -101,7 +101,7 @@ def main(key):
     # Connects to SQLite DB
     conn = db.createDatabaseConnection()
 
-    profile = db.selectFirstNotDoneFollowerWithGeo(conn)
+    profile = db.selectFirstNotDoneFollower(conn)
 
     while profile != None:
 
@@ -114,14 +114,16 @@ def main(key):
         db.updateFollowerDone(conn, (1, 0, profile[0]))
 
         try:
-            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
+            profile = db.selectFirstNotDoneFollower(conn)
         except:
             time.sleep(300)
-            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
+            profile = db.selectFirstNotDoneFollower(conn)
+
 
 if __name__ == "__main__":
     try:
-        time.sleep(15)
-        main(2)    
+        # Waiting other services to fill up some data on followers table on database
+        time.sleep(60)
+        main(4)    
     except Exception as ex:
-        print("Exception on main(2) occured: " + str(ex))
+        print("Exception on main(4) occured: " + str(ex))

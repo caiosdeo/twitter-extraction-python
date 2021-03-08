@@ -57,7 +57,7 @@ def updateGeoActivity(twitter, conn, profile, cursor, key):
             except Exception as ex:
                 log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Error: " + str(ex) + "..Next profile... \n");
                 log.flush()
-                if(ex.error_code == 429):
+                if(ex.error_code == 429 or ex.error_code == 500):
 
                     while not timelineRequestIsAvailable(twitter, profile[1]):
                         log.write("[" + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + "] Rate limit exceeded. Waiting 15 minutes to try again..\n");
@@ -101,7 +101,7 @@ def main(key):
     # Connects to SQLite DB
     conn = db.createDatabaseConnection()
 
-    profile = db.selectFirstNotDoneFollower(conn)
+    profile = db.selectFirstNotDoneFollowerWithGeo(conn)
 
     while profile != None:
 
@@ -114,10 +114,10 @@ def main(key):
         db.updateFollowerDone(conn, (1, 0, profile[0]))
 
         try:
-            profile = db.selectFirstNotDoneFollower(conn)
+            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
         except:
             time.sleep(300)
-            profile = db.selectFirstNotDoneFollower(conn)
+            profile = db.selectFirstNotDoneFollowerWithGeo(conn)
 
 
 if __name__ == "__main__":
